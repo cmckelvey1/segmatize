@@ -7,6 +7,7 @@ from datetime import datetime
 import multiprocessing
 
 from pydub import AudioSegment
+from video_converter import convert_video_to_audio, convert_m4a_to_mp3
 
 # ------------------------------
 # Helper Functions
@@ -21,17 +22,6 @@ def create_date_subdir(base_out):
     sub_dir = os.path.join(base_out, str(now.year), f"{now.month:02d}", f"{now.day:02d}")
     os.makedirs(sub_dir, exist_ok=True)
     return sub_dir
-
-def convert_video_to_audio(video_path, output_audio_path):
-    """
-    Convert the given video file to MP3 format using ffmpeg.
-    """
-    cmd = [
-        "ffmpeg", "-y", "-i", video_path,
-        "-vn", "-q:a", "0", "-map", "a", output_audio_path
-    ]
-    print(f"[FFmpeg] Converting video '{video_path}' to audio '{output_audio_path}'")
-    subprocess.run(cmd, check=True)
 
 def split_audio(audio_path, num_segments, output_dir):
     """
@@ -159,7 +149,7 @@ def process_line(row, base_out):
     """
     Process one CSV row.
     Expected CSV row fields (comma-separated):
-      1. Video file location
+      1. Video/Audio file location (MP4 or M4A)
       2. Names list (separated by '_') – for reference
       3. Folder name (used to name the conversation subdirectory)
       4. Description file location (not used in processing)
@@ -168,7 +158,7 @@ def process_line(row, base_out):
         print("Skipping row (not enough entries):", row)
         return
 
-    video_file = row[0].strip()
+    input_file_path = row[0].strip()
     # Capture names_list if needed (currently not used)
     names_list = row[1].strip().split("_")
     folder_name = row[2].strip()
@@ -185,12 +175,28 @@ def process_line(row, base_out):
     os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(transcription_dir, exist_ok=True)
 
-    # Step 1: Convert video to audio (MP3)
+    # Step 1: Convert input file to audio (MP3)
     full_audio_path = os.path.join(audio_dir, "full_audio.mp3")
-    convert_video_to_audio(video_file, full_audio_path)
+    
+    # Check file extension and convert accordingly
+    file_extension = os.path.splitext(input_file_path)[1].lower()
+    
+    if file_extension == ".mp4":
+        print(f"Processing MP4 video file: {input_file_path}")
+        audio_file_path = convert_video_to_audio(input_file_path, full_audio_path)
+    elif file_extension == ".m4a":
+        print(f"Processing M4A audio file: {input_file_path}")
+        audio_file_path = convert_m4a_to_mp3(input_file_path, full_audio_path)
+    else:
+        print(f"Unsupported file type: {file_extension}. Skipping file: {input_file_path}")
+        return
+
+    if not audio_file_path:
+        print(f"Audio conversion failed for {input_file_path}. Skipping.")
+        return
 
     # Step 2: Run Whisper on the full audio file in parallel.
-    final_transcript = run_whisper_on_audio_parallel(full_audio_path, transcription_dir)
+    final_transcript = run_whisper_on_audio_parallel(audio_file_path, transcription_dir)
 
     # Output the final transcript to stdout.
     print("\n----- Final Conversation Transcript -----\n")
