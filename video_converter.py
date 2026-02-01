@@ -15,10 +15,19 @@ def convert_video_to_audio(video_path, output_audio_path=None):
     """
     if output_audio_path is None:
         # Create output path in same directory as video with .mp3 extension
+        # Extract directory path from the video file
         video_dir = os.path.dirname(video_path)
+        # Get the filename without extension
         video_name = os.path.splitext(os.path.basename(video_path))[0]
+        # Construct the output path with .mp3 extension
         output_audio_path = os.path.join(video_dir, f"{video_name}.mp3")
     
+    # Build ffmpeg command to extract audio
+    # -y: overwrite output file without asking
+    # -i: input file
+    # -vn: disable video recording (audio only)
+    # -q:a 0: best audio quality
+    # -map a: map all audio streams
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
         "-vn", "-q:a", "0", "-map", "a", output_audio_path
@@ -39,6 +48,11 @@ def convert_m4a_to_mp3(m4a_path, output_mp3_path):
     Returns:
         str: Path to the resulting MP3 file.
     """
+    # Build ffmpeg command to convert M4A to MP3
+    # -y: overwrite output file without asking
+    # -i: input file
+    # -codec:a libmp3lame: use LAME MP3 encoder
+    # -q:a 2: high audio quality (0-9 scale, lower is better)
     cmd = [
         "ffmpeg", "-y", "-i", m4a_path,
         "-codec:a", "libmp3lame", "-q:a", "2", output_mp3_path
